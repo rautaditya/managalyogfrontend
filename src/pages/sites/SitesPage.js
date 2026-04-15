@@ -1,0 +1,200 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { sitesAPI } from '../../api';
+import Modal from '../../components/common/Modal';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { formatDate, statusColor, getError } from '../../utils/helpers';
+import toast from 'react-hot-toast';
+
+// MySQL backend expects snake_case: name, address, owner_name, phone, gst_number, project_name, status, notes
+const EMPTY_FORM = {
+  name: '', address: '', owner_name: '', phone: '',
+  gst_number: '', project_name: '', status: 'active', notes: '',
+};
+
+export default function SitesPage() {
+  const [sites, setSites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editSite, setEditSite] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState('');
+  const navigate = useNavigate();
+
+  const fetchSites = async () => {
+    try {
+      const res = await sitesAPI.getAll();
+      setSites(res.data);
+    } catch { toast.error('Failed to load sites'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchSites(); }, []);
+
+  const openAdd = () => { setEditSite(null); setForm(EMPTY_FORM); setModalOpen(true); };
+
+  const openEdit = (site) => {
+    setEditSite(site);
+    setForm({
+      name:         site.name,
+      address:      site.address,
+      owner_name:   site.owner_name  || '',
+      phone:        site.phone       || '',
+      gst_number:   site.gst_number  || '',
+      project_name: site.project_name || '',
+      status:       site.status,
+      notes:        site.notes       || '',
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.address) return toast.error('Name and address are required');
+    setSaving(true);
+    try {
+      if (editSite) {
+        await sitesAPI.update(editSite.id, form);
+        toast.success('Site updated');
+      } else {
+        await sitesAPI.create(form);
+        toast.success('Site created');
+      }
+      setModalOpen(false);
+      fetchSites();
+    } catch (err) { toast.error(getError(err)); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await sitesAPI.delete(deleteTarget.id);
+      toast.success('Site deleted');
+      setDeleteTarget(null);
+      fetchSites();
+    } catch (err) { toast.error(getError(err)); }
+    finally { setDeleting(false); }
+  };
+
+  const filtered = sites.filter((s) =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    s.address.toLowerCase().includes(search.toLowerCase()) ||
+    (s.project_name || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Sites</h2>
+          <p className="page-subtitle">{sites.length} site{sites.length !== 1 ? 's' : ''} total</p>
+        </div>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Site</button>
+      </div>
+
+      <div className="filters-bar">
+        <input className="form-control" placeholder="🔍 Search sites..." value={search}
+          onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 300 }} />
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><p>Loading sites...</p></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">🏗️</div>
+          <p>{search ? 'No sites match your search' : 'No sites yet. Add your first site!'}</p>
+        </div>
+      ) : (
+        <div className="grid-3">
+          {filtered.map((site) => (
+            <div key={site.id} className="card"
+              style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}
+              onClick={() => navigate(`/sites/${site.id}`)}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>{site.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{site.address}</div>
+                {/* MySQL: project_name */}
+                {site.project_name && (
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>📁 {site.project_name}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }} onClick={(e) => e.stopPropagation()}>
+                <span className={`badge ${statusColor(site.status)}`} style={{ marginRight: 6 }}>{site.status}</span>
+                <button className="btn btn-outline btn-sm" onClick={() => openEdit(site)}>✏️</button>
+                <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }}
+                  onClick={() => setDeleteTarget(site)}>🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)}
+        title={editSite ? 'Edit Site' : 'Add New Site'}>
+        <form onSubmit={handleSave}>
+          <div className="modal-body">
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Site Name *</label>
+                <input className="form-control" placeholder="Site name" value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Address *</label>
+                <input className="form-control" placeholder="Address" value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Owner Name</label>
+                <input className="form-control" placeholder="Owner / company name" value={form.owner_name}
+                  onChange={(e) => setForm({ ...form, owner_name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
+                <input className="form-control" placeholder="Phone number" value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">GST Number</label>
+                <input className="form-control" placeholder="GST number" value={form.gst_number}
+                  onChange={(e) => setForm({ ...form, gst_number: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Project Name</label>
+                <input className="form-control" placeholder="Project name" value={form.project_name}
+                  onChange={(e) => setForm({ ...form, project_name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-control" value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Notes</label>
+              <textarea className="form-control" rows={3} placeholder="Additional notes..."
+                value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving...' : editSite ? '💾 Update Site' : '+ Add Site'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete} loading={deleting}
+        title="Delete Site" message={`Delete site "${deleteTarget?.name}"? All related data may be affected.`} />
+    </div>
+  );
+}

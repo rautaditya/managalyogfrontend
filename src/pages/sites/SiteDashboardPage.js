@@ -186,7 +186,7 @@ export default function SiteDashboardPage() {
             <thead>
               <tr>
                 <th>Date</th><th>Name</th><th>Description</th>
-                <th>Payment Mode</th><th>Type</th><th>Amount</th><th>Actions</th>
+                <th>Payment Mode</th><th>Type</th><th>Amounts</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>

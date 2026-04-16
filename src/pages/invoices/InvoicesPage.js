@@ -7,7 +7,6 @@ import ItemsForm from '../../components/common/ItemsForm';
 import { formatCurrency, formatDate, statusColor, getError } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-// MySQL backend expects: site_id, items, tax_rate, status, due_date, notes, date
 const EMPTY_FORM = { site_id: '', notes: '', due_date: '', status: 'unpaid' };
 const EMPTY_ITEM = { description: '', quantity: 1, rate: 0, amount: 0 };
 
@@ -27,7 +26,6 @@ export default function InvoicesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const navigate = useNavigate();
 
-  // MySQL: invoice_number, site_name (flat join)
   const filteredInvoices = invoices.filter((inv) =>
     inv.invoice_number?.toLowerCase().includes(search.toLowerCase().trim()) ||
     inv.site_name?.toLowerCase().includes(search.toLowerCase().trim())
@@ -36,8 +34,8 @@ export default function InvoicesPage() {
   const fetchData = useCallback(async () => {
     try {
       const params = {};
-      if (filterSite)   params.site_id = filterSite;
-      if (filterStatus) params.status  = filterStatus;
+      if (filterSite) params.site_id = filterSite;
+      if (filterStatus) params.status = filterStatus;
 
       const [invRes, sitesRes] = await Promise.all([
         invoicesAPI.getAll(params),
@@ -52,7 +50,9 @@ export default function InvoicesPage() {
     }
   }, [filterSite, filterStatus]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -86,7 +86,6 @@ export default function InvoicesPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      // MySQL: invoice_number
       a.download = `${inv.invoice_number}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
@@ -116,29 +115,58 @@ export default function InvoicesPage() {
       <div className="page-header">
         <div>
           <h2 className="page-title">Invoices</h2>
-          <p className="page-subtitle">{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</p>
+          <p className="page-subtitle">
+            {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+          </p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Create Invoice</button>
+        <button className="btn btn-primary" onClick={openCreate}>
+          + Create Invoice
+        </button>
       </div>
 
       {/* Filters */}
       <div className="filters-bar">
-        <input type="text" placeholder="Search invoice..." value={search}
-          onChange={(e) => setSearch(e.target.value)} className="form-control" style={{ maxWidth: 220 }} />
-        <select className="form-control" value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}>
+        <input
+          type="text"
+          placeholder="Search invoice..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+          style={{ maxWidth: 220 }}
+        />
+
+        <select
+          className="form-control"
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+        >
           <option value="">All Status</option>
           <option value="paid">Paid</option>
           <option value="unpaid">Unpaid</option>
           <option value="cancelled">Cancelled</option>
         </select>
-        <select className="form-control" value={filterSite}
-          onChange={(e) => setFilterSite(e.target.value)}>
+
+        <select
+          className="form-control"
+          value={filterSite}
+          onChange={(e) => setFilterSite(e.target.value)}
+        >
           <option value="">All Sites</option>
-          {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          {sites.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
         </select>
-        <button className="btn btn-outline btn-sm"
-          onClick={() => { setFilterSite(''); setFilterStatus(''); setSearch(''); }}>
+
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            setFilterSite('');
+            setFilterStatus('');
+            setSearch('');
+          }}
+        >
           Clear
         </button>
       </div>
@@ -146,10 +174,13 @@ export default function InvoicesPage() {
       {/* Table */}
       <div className="card">
         {loading ? (
-          <div className="empty-state"><p>Loading...</p></div>
+          <div className="empty-state">
+            <p>Loading...</p>
+          </div>
         ) : filteredInvoices.length === 0 ? (
           <div className="empty-state">
-            <div className="icon">🧾</div><p>No invoices yet</p>
+            <div className="icon">🧾</div>
+            <p>No invoices yet</p>
           </div>
         ) : (
           <>
@@ -158,35 +189,60 @@ export default function InvoicesPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Invoice #</th><th>Site</th><th>Date</th>
-                    <th>Due Date</th><th>Total</th><th>Status</th><th>Actions</th>
+                    <th>Invoice #</th>
+                    <th>Site</th>
+                    <th>Date</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredInvoices.map((inv) => (
                     <tr key={inv.id}>
-                      {/* MySQL: invoice_number */}
-                      <td style={{ fontWeight: 600, color: '#1e40af', cursor: 'pointer' }}
-                        onClick={() => navigate(`/invoices/${inv.id}`)}>
+                      <td
+                        style={{ fontWeight: 600, color: '#1e40af', cursor: 'pointer' }}
+                        onClick={() => navigate(`/invoices/${inv.id}`)}
+                      >
                         {inv.invoice_number}
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>
+                          {inv.city || inv.site_city || ''}
+                        </div>
                       </td>
-                      {/* MySQL flat join: site_name */}
+
                       <td>{inv.site_name || '—'}</td>
                       <td>{formatDate(inv.date)}</td>
-                      {/* MySQL: due_date */}
-                      <td>{formatDate(inv.due_date)}</td>
                       <td style={{ fontWeight: 700 }}>{formatCurrency(inv.total)}</td>
+
                       <td>
-                        <span className={`badge ${statusColor(inv.status)}`}>{inv.status}</span>
+                        <span className={`badge ${statusColor(inv.status)}`}>
+                          {inv.status}
+                        </span>
                       </td>
+
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-outline btn-sm"
-                            onClick={() => navigate(`/invoices/${inv.id}`)}>👁️</button>
-                          <button className="btn btn-outline btn-sm"
-                            onClick={() => handleDownloadPDF(inv)}>📄</button>
-                          <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }}
-                            onClick={() => setDeleteTarget(inv)}>🗑️</button>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => navigate(`/invoices/${inv.id}`)}
+                          >
+                            👁️
+                          </button>
+
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => handleDownloadPDF(inv)}
+                          >
+                            📄
+                          </button>
+
+                          <button
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#dc2626' }}
+                            onClick={() => setDeleteTarget(inv)}
+                          >
+                            🗑️
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -199,17 +255,46 @@ export default function InvoicesPage() {
             <div className="mobile-cards">
               {filteredInvoices.map((inv) => (
                 <div key={inv.id} className="invoice-card">
-                  <div><strong>#{inv.invoice_number}</strong></div>
+                  <div>
+                    <strong>#{inv.invoice_number}</strong>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                      {inv.city || inv.site_city || ''}
+                    </div>
+                  </div>
+
                   <div>{inv.site_name}</div>
                   <div>Date: {formatDate(inv.date)}</div>
-                  <div>Due: {formatDate(inv.due_date)}</div>
                   <div>Total: {formatCurrency(inv.total)}</div>
-                  <div>Status: <span className={`badge ${statusColor(inv.status)}`}>{inv.status}</span></div>
+
+                  <div>
+                    Status:{' '}
+                    <span className={`badge ${statusColor(inv.status)}`}>
+                      {inv.status}
+                    </span>
+                  </div>
+
                   <div className="card-actions">
-                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/invoices/${inv.id}`)}>👁️</button>
-                    <button className="btn btn-outline btn-sm" onClick={() => handleDownloadPDF(inv)}>📄</button>
-                    <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }}
-                      onClick={() => setDeleteTarget(inv)}>🗑️</button>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => navigate(`/invoices/${inv.id}`)}
+                    >
+                      👁️
+                    </button>
+
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleDownloadPDF(inv)}
+                    >
+                      📄
+                    </button>
+
+                    <button
+                      className="btn btn-outline btn-sm"
+                      style={{ color: '#dc2626' }}
+                      onClick={() => setDeleteTarget(inv)}
+                    >
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))}
@@ -218,43 +303,70 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* Modal + Delete Dialog unchanged */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Invoice" size="lg">
         <form onSubmit={handleCreate}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
               <div className="form-group">
                 <label className="form-label">Site *</label>
-                <select className="form-control" value={form.site_id}
-                  onChange={(e) => setForm({ ...form, site_id: e.target.value })}>
+                <select
+                  className="form-control"
+                  value={form.site_id}
+                  onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                >
                   <option value="">Select site</option>
-                  {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Status</label>
-                <select className="form-control" value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <select
+                  className="form-control"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
                   <option value="unpaid">Unpaid</option>
                   <option value="paid">Paid</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Due Date</label>
-                <input type="date" className="form-control" value={form.due_date}
-                  onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+                <input
+                  type="date"
+                  className="form-control"
+                  value={form.due_date}
+                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                />
               </div>
             </div>
+
             <ItemsForm items={items} setItems={setItems} taxRate={taxRate} setTaxRate={setTaxRate} />
+
             <div className="form-group" style={{ marginTop: 16 }}>
               <label className="form-label">Notes</label>
-              <textarea className="form-control" rows={2} placeholder="Notes..."
-                value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <textarea
+                className="form-control"
+                rows={2}
+                placeholder="Notes..."
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </div>
           </div>
+
           <div className="modal-footer">
-            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>
+              Cancel
+            </button>
+
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Creating...' : '🧾 Create Invoice'}
             </button>
@@ -262,9 +374,14 @@ export default function InvoicesPage() {
         </form>
       </Modal>
 
-      <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete} loading={deleting} title="Delete Invoice"
-        message={`Delete invoice ${deleteTarget?.invoice_number}?`} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="Delete Invoice"
+        message={`Delete invoice ${deleteTarget?.invoice_number}?`}
+      />
     </div>
   );
 }

@@ -57,11 +57,11 @@ export default function TransactionsPage() {
     setForm({
       type:         txn.type,
       amount:       txn.amount,
-      site_id:      txn.site_id,       // MySQL: site_id
+      site_id:      txn.site_id,
       name:         txn.name,
       description:  txn.description || '',
       note:         txn.note        || '',
-      payment_mode: txn.payment_mode,  // MySQL: payment_mode
+      payment_mode: txn.payment_mode,
       date:         new Date(txn.date).toISOString().split('T')[0],
     });
     setModalOpen(true);
@@ -111,13 +111,12 @@ export default function TransactionsPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Header — buttons fully right aligned */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
-          <h2 className="page-title">Transactions</h2>
           <p className="page-subtitle">{filteredTransactions.length} of {transactions.length} records</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <button className="btn btn-outline" onClick={handleExport} disabled={exporting}>
             {exporting ? '...' : '📥 Export Excel'}
           </button>
@@ -189,11 +188,9 @@ export default function TransactionsPage() {
                 {filteredTransactions.map((txn) => (
                   <tr key={txn.id}>
                     <td>{formatDate(txn.date)}</td>
-                    {/* MySQL flat join: site_name */}
                     <td style={{ fontWeight: 500, color: '#1e40af' }}>{txn.site_name || '—'}</td>
                     <td style={{ fontWeight: 500 }}>{txn.name}</td>
                     <td style={{ color: '#64748b', maxWidth: 160 }}>{txn.description || '—'}</td>
-                    {/* MySQL: payment_mode */}
                     <td><span style={{ fontSize: 12, padding: '2px 8px', background: '#f1f5f9', borderRadius: 4 }}>{txn.payment_mode}</span></td>
                     <td>
                       <span className={`badge badge-${txn.type === 'IN' ? 'in' : 'out'}`}>{txn.type}</span>
@@ -216,7 +213,7 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* Mobile Cards */}
+      {/* Mobile Cards — transaction name removed */}
       <div className="mobile-cards">
         {loading ? (
           <div className="empty-state"><p>Loading...</p></div>
@@ -225,16 +222,15 @@ export default function TransactionsPage() {
         ) : filteredTransactions.map((txn) => (
           <div key={txn.id} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontWeight: 600, fontSize: 14, color: '#1e293b' }}>{txn.name}</span>
-              <span style={{ fontWeight: 700, fontSize: 15, color: txn.type === 'IN' ? '#16a34a' : '#dc2626' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 12, color: '#64748b' }}>
+                <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>🏗 {txn.site_name || '—'}</span>
+                <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>📅 {formatDate(txn.date)}</span>
+                <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>{txn.payment_mode}</span>
+                <span className={`badge badge-${txn.type === 'IN' ? 'in' : 'out'}`}>{txn.type}</span>
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 15, color: txn.type === 'IN' ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap', marginLeft: 8 }}>
                 {txn.type === 'IN' ? '+' : '-'}{formatCurrency(txn.amount)}
               </span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-              <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>🏗 {txn.site_name || '—'}</span>
-              <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>📅 {formatDate(txn.date)}</span>
-              <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '2px 8px' }}>{txn.payment_mode}</span>
-              <span className={`badge badge-${txn.type === 'IN' ? 'in' : 'out'}`}>{txn.type}</span>
             </div>
             {txn.description && <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>{txn.description}</div>}
             <div style={{ display: 'flex', gap: 8 }}>

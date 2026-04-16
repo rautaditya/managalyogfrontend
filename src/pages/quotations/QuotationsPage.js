@@ -12,6 +12,7 @@ const EMPTY_FORM = { site_id: '', notes: '', valid_until: '', status: 'draft' };
 const EMPTY_ITEM = { description: '', quantity: 1, rate: 0, amount: 0 };
 
 export default function QuotationsPage() {
+  const [search, setSearch] = useState('');
   const [quotations, setQuotations] = useState([]);
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,16 +28,22 @@ export default function QuotationsPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const navigate = useNavigate();
 
+  const filteredQuotations = quotations.filter((quot) =>
+    quot.quotation_number?.toLowerCase().includes(search.toLowerCase().trim()) ||
+    quot.site_name?.toLowerCase().includes(search.toLowerCase().trim())
+  );
+
   const fetchData = useCallback(async () => {
     try {
       const params = {};
-      if (filterSite)   params.site_id = filterSite;
-      if (filterStatus) params.status  = filterStatus;
+      if (filterSite) params.site_id = filterSite;
+      if (filterStatus) params.status = filterStatus;
 
       const [quotRes, sitesRes] = await Promise.all([
         quotationsAPI.getAll(params),
         sitesAPI.getAll(),
       ]);
+
       setQuotations(quotRes.data);
       setSites(sitesRes.data);
     } catch {
@@ -46,7 +53,9 @@ export default function QuotationsPage() {
     }
   }, [filterSite, filterStatus]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -58,11 +67,17 @@ export default function QuotationsPage() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.site_id) return toast.error('Please select a site');
-    if (items.some((i) => !i.description || !i.rate)) return toast.error('Fill all item fields');
+    if (items.some((i) => !i.description || !i.rate)) {
+      return toast.error('Fill all item fields');
+    }
 
     setSaving(true);
     try {
-      await quotationsAPI.create({ ...form, tax_rate: parseFloat(taxRate) || 0, items });
+      await quotationsAPI.create({
+        ...form,
+        tax_rate: parseFloat(taxRate) || 0,
+        items,
+      });
       toast.success('Quotation created');
       setModalOpen(false);
       fetchData();
@@ -75,6 +90,7 @@ export default function QuotationsPage() {
 
   const handleConvert = async (quot) => {
     if (quot.status === 'converted') return toast.error('Already converted');
+
     setConverting(quot.id);
     try {
       await quotationsAPI.convert(quot.id);
@@ -95,7 +111,6 @@ export default function QuotationsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      // MySQL: quotation_number
       a.download = `${quot.quotation_number}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
@@ -121,125 +136,283 @@ export default function QuotationsPage() {
 
   return (
     <div>
+      {/* Header */}
       <div className="page-header">
-        <div>
-          <h2 className="page-title">Quotations</h2>
-          <p className="page-subtitle">{quotations.length} quotation{quotations.length !== 1 ? 's' : ''}</p>
-        </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Create Quotation</button>
-      </div>
-
+  <div>
+    <p className="page-subtitle">{quotations.length} quotation{quotations.length !== 1 ? 's' : ''}</p>
+  </div>
+  <button className="btn btn-primary" onClick={openCreate}>+ Create Quotation</button>
+</div>
+      {/* Filters */}
       <div className="filters-bar">
-        <select className="form-control" value={filterSite}
-          onChange={(e) => setFilterSite(e.target.value)}>
-          <option value="">All Sites</option>
-          {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <select className="form-control" value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}>
+        <input
+          type="text"
+          placeholder="Search quotation..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+          style={{ maxWidth: 220 }}
+        />
+
+        <select
+          className="form-control"
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+        >
           <option value="">All Status</option>
           <option value="draft">Draft</option>
           <option value="sent">Sent</option>
           <option value="converted">Converted</option>
           <option value="cancelled">Cancelled</option>
         </select>
-        <button className="btn btn-outline btn-sm"
-          onClick={() => { setFilterSite(''); setFilterStatus(''); }}>Clear</button>
+
+        <select
+          className="form-control"
+          value={filterSite}
+          onChange={(e) => setFilterSite(e.target.value)}
+        >
+          <option value="">All Sites</option>
+          {sites.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            setFilterSite('');
+            setFilterStatus('');
+            setSearch('');
+          }}
+        >
+          Clear
+        </button>
       </div>
 
+      {/* Table / Cards */}
       <div className="card">
         {loading ? (
-          <div className="empty-state"><p>Loading...</p></div>
-        ) : quotations.length === 0 ? (
-          <div className="empty-state"><div className="icon">📋</div><p>No quotations yet</p></div>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Quotation #</th><th>Site</th><th>Date</th>
-                  <th>Valid Until</th><th>Total</th><th>Status</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quotations.map((quot) => (
-                  <tr key={quot.id}>
-                    {/* MySQL: quotation_number */}
-                    <td style={{ fontWeight: 600, color: '#1e40af', cursor: 'pointer' }}
-                      onClick={() => navigate(`/quotations/${quot.id}`)}>
-                      {quot.quotation_number}
-                    </td>
-                    {/* MySQL flat join: site_name */}
-                    <td>{quot.site_name || '—'}</td>
-                    <td>{formatDate(quot.date)}</td>
-                    {/* MySQL: valid_until */}
-                    <td>{formatDate(quot.valid_until)}</td>
-                    <td style={{ fontWeight: 700 }}>{formatCurrency(quot.total)}</td>
-                    <td>
-                      <span className={`badge ${statusColor(quot.status)}`}>{quot.status}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-outline btn-sm"
-                          onClick={() => navigate(`/quotations/${quot.id}`)}>👁️</button>
-                        <button className="btn btn-outline btn-sm"
-                          onClick={() => handleDownloadPDF(quot)}>📄</button>
-                        {quot.status !== 'converted' && (
-                          <button className="btn btn-outline btn-sm"
-                            style={{ color: '#7c3aed', fontSize: 11 }}
-                            onClick={() => handleConvert(quot)}
-                            disabled={converting === quot.id}>
-                            {converting === quot.id ? '...' : '→ Invoice'}
-                          </button>
-                        )}
-                        <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }}
-                          onClick={() => setDeleteTarget(quot)}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="empty-state">
+            <p>Loading...</p>
           </div>
+        ) : filteredQuotations.length === 0 ? (
+          <div className="empty-state">
+            <div className="icon">📋</div>
+            <p>No quotations yet</p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop */}
+            <div className="table-wrapper desktop-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Quotation #</th>
+                    <th>Site</th>
+                    {/* <th>Date</th>
+                    <th>Valid Until</th> */}
+                    <th>Total</th>
+                    {/* <th>Status</th> */}
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQuotations.map((quot) => (
+                    <tr key={quot.id}>
+                      <td
+                        style={{ fontWeight: 600, color: '#1e40af', cursor: 'pointer' }}
+                        onClick={() => navigate(`/quotations/${quot.id}`)}
+                      >
+                        {quot.quotation_number}
+                      </td>
+                      <td>{quot.site_name || '—'}</td>
+                      {/* <td>{formatDate(quot.date)}</td> */}
+                      {/* <td>{formatDate(quot.valid_until)}</td> */}
+                      <td style={{ fontWeight: 700 }}>{formatCurrency(quot.total)}</td>
+                      {/* <td>
+                        <span className={`badge ${statusColor(quot.status)}`}>
+                          {quot.status}
+                        </span>
+                      </td> */}
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => navigate(`/quotations/${quot.id}`)}
+                          >
+                            👁️
+                          </button>
+
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => handleDownloadPDF(quot)}
+                          >
+                            📄
+                          </button>
+
+                          {quot.status !== 'converted' && (
+                            <button
+                              className="btn btn-outline btn-sm"
+                              style={{ color: '#7c3aed', fontSize: 11 }}
+                              onClick={() => handleConvert(quot)}
+                              disabled={converting === quot.id}
+                            >
+                              {converting === quot.id ? '...' : '→ Invoice'}
+                            </button>
+                          )}
+
+                          <button
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#dc2626' }}
+                            onClick={() => setDeleteTarget(quot)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile */}
+            <div className="mobile-cards">
+              {filteredQuotations.map((quot) => (
+                <div key={quot.id} className="invoice-card">
+                  <div>
+                    <strong>#{quot.quotation_number}</strong>
+                  </div>
+                  <div>{quot.site_name}</div>
+                  {/* <div>Date: {formatDate(quot.date)}</div>
+                  <div>Valid Until: {formatDate(quot.valid_until)}</div> */}
+                  <div>Total: {formatCurrency(quot.total)}</div>
+                  {/* <div>
+                    Status:{' '}
+                    <span className={`badge ${statusColor(quot.status)}`}>
+                      {quot.status}
+                    </span>
+                  </div> */}
+
+                  <div className="card-actions">
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => navigate(`/quotations/${quot.id}`)}
+                    >
+                      👁️
+                    </button>
+
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handleDownloadPDF(quot)}
+                    >
+                      📄
+                    </button>
+
+                    {quot.status !== 'converted' && (
+                      <button
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#7c3aed', fontSize: 11 }}
+                        onClick={() => handleConvert(quot)}
+                        disabled={converting === quot.id}
+                      >
+                        {converting === quot.id ? '...' : '→ Invoice'}
+                      </button>
+                    )}
+
+                    <button
+                      className="btn btn-outline btn-sm"
+                      style={{ color: '#dc2626' }}
+                      onClick={() => setDeleteTarget(quot)}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
       {/* Create Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Quotation" size="lg">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Create Quotation"
+        size="lg"
+      >
         <form onSubmit={handleCreate}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
               <div className="form-group">
                 <label className="form-label">Site *</label>
-                <select className="form-control" value={form.site_id}
-                  onChange={(e) => setForm({ ...form, site_id: e.target.value })}>
+                <select
+                  className="form-control"
+                  value={form.site_id}
+                  onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                >
                   <option value="">Select site</option>
-                  {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Status</label>
-                <select className="form-control" value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <select
+                  className="form-control"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
                 </select>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Valid Until</label>
-                <input type="date" className="form-control" value={form.valid_until}
-                  onChange={(e) => setForm({ ...form, valid_until: e.target.value })} />
+                <input
+                  type="date"
+                  className="form-control"
+                  value={form.valid_until}
+                  onChange={(e) => setForm({ ...form, valid_until: e.target.value })}
+                />
               </div>
             </div>
-            <ItemsForm items={items} setItems={setItems} taxRate={taxRate} setTaxRate={setTaxRate} />
+
+            <ItemsForm
+              items={items}
+              setItems={setItems}
+              taxRate={taxRate}
+              setTaxRate={setTaxRate}
+            />
+
             <div className="form-group" style={{ marginTop: 16 }}>
               <label className="form-label">Notes</label>
-              <textarea className="form-control" rows={2} placeholder="Notes..."
-                value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <textarea
+                className="form-control"
+                rows={2}
+                placeholder="Notes..."
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </div>
           </div>
+
           <div className="modal-footer">
-            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setModalOpen(false)}
+            >
+              Cancel
+            </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Creating...' : '📋 Create Quotation'}
             </button>
@@ -247,9 +420,14 @@ export default function QuotationsPage() {
         </form>
       </Modal>
 
-      <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete} loading={deleting} title="Delete Quotation"
-        message={`Delete quotation ${deleteTarget?.quotation_number}?`} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="Delete Quotation"
+        message={`Delete quotation ${deleteTarget?.quotation_number}?`}
+      />
     </div>
   );
 }

@@ -186,7 +186,7 @@ export default function SiteDashboardPage() {
             <thead>
               <tr>
                 <th>Date</th><th>Name</th><th>Description</th>
-                <th>Payment Mode</th><th>Type</th><th>Amounts</th><th>Actions</th>
+                <th>Payment Mode</th><th>Type</th><th>Amount</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -222,23 +222,56 @@ export default function SiteDashboardPage() {
       </div>
 
       {/* Fixed bottom buttons */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-        width: '100%', maxWidth: 1200,
-        display: 'flex', gap: 10, padding: 10, background: '#fff',
-        borderTop: '1px solid #e2e8f0', zIndex: 50,
-      }}>
-        <button className="btn btn-success" style={{ flex: 1, height: 48, fontSize: 15, fontWeight: 600 }}
-          onClick={() => openAdd('IN')}>
-          + Money IN
-        </button>
-        <button className="btn btn-danger" style={{ flex: 1, height: 48, fontSize: 15, fontWeight: 600 }}
-          onClick={() => openAdd('OUT')}>
-          - Money OUT
-        </button>
-      </div>
-      <div style={{ height: 70 }} />
+<div className="site-dashboard-bottom-bar">
+  <button
+    className="btn btn-success"
+    style={{ flex: 1, height: 48, fontSize: 15, fontWeight: 600 }}
+    onClick={() => openAdd('IN')}
+  >
+    + Money IN
+  </button>
 
+  <button
+    className="btn btn-danger"
+    style={{ flex: 1, height: 48, fontSize: 15, fontWeight: 600 }}
+    onClick={() => openAdd('OUT')}
+  >
+    - Money OUT
+  </button>
+</div>
+<div style={{ height: 70 }} />
+
+<style>{`
+  .site-dashboard-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    z-index: 50;
+  }
+
+  /* Desktop only */
+  @media (min-width: 1024px) {
+    .site-dashboard-bottom-bar {
+      left: 290px;
+      right: 20px;
+      transform: none;
+      width: auto;
+      max-width: none;
+      padding: 12px 16px;
+      gap: 12px;
+      border-radius: 12px 12px 0 0;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    }
+  }
+`}</style>
       {/* Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)}
         title={editTxn ? 'Edit Transaction' : `Add ${form.type === 'IN' ? 'Income' : 'Expense'}`}>

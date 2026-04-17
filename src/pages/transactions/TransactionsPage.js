@@ -43,12 +43,17 @@ export default function TransactionsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ✅ FIX: Define filteredTransactions FIRST
   // MySQL flat join: site_name (not txn.siteId?.name)
   const filteredTransactions = transactions.filter((txn) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return txn.name?.toLowerCase().includes(q) || txn.site_name?.toLowerCase().includes(q);
   });
+
+  // ✅ FIX: Use filteredTransactions so totals update on search/filter
+  const totalIn  = filteredTransactions.filter((t) => t.type === 'IN').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const totalOut = filteredTransactions.filter((t) => t.type === 'OUT').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
 
   const openAdd = () => { setEditTxn(null); setForm(EMPTY_FORM); setModalOpen(true); };
 
@@ -106,9 +111,6 @@ export default function TransactionsPage() {
     finally { setExporting(false); }
   };
 
-  const totalIn  = transactions.filter((t) => t.type === 'IN').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-  const totalOut = transactions.filter((t) => t.type === 'OUT').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-
   return (
     <div>
       {/* Header — buttons fully right aligned */}
@@ -124,7 +126,7 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — now reactive to search & filters */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         {[
           { label: 'Total IN',  val: totalIn,            color: '#16a34a' },
@@ -213,7 +215,7 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* Mobile Cards — transaction name removed */}
+      {/* Mobile Cards */}
       <div className="mobile-cards">
         {loading ? (
           <div className="empty-state"><p>Loading...</p></div>

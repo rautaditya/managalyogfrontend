@@ -127,19 +127,21 @@ function normalizeTransaction(data) {
 
 function normalizeInvoice(data) {
   return {
-    site_id:  data.site_id || data.siteId,
-    items:    data.items,
-    tax_rate: data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
-    status:   data.status,
-    due_date: data.due_date || data.dueDate || null,
-    notes:    data.notes || null,
-    date:     data.date || null,
+    site_id:     data.site_id || null,
+    client_name: data.client_name || null,
+    items:       data.items,
+    tax_rate:    data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
+    status:      data.status,
+    due_date:    data.due_date || data.dueDate || null,
+    notes:       data.notes || null,
+    date:        data.date || null,
   };
 }
-
+// TO THIS:
 function normalizeQuotation(data) {
   return {
-    site_id:     data.site_id || data.siteId,
+    site_id:     data.site_id || null,
+    client_name: data.client_name || null,
     items:       data.items,
     tax_rate:    data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
     status:      data.status,

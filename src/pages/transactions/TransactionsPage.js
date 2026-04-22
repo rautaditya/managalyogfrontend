@@ -234,8 +234,7 @@ export default function TransactionsPage() {
                 {txn.type === 'IN' ? '+' : '-'}{formatCurrency(txn.amount)}
               </span>
             </div>
-            {txn.description && <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>{txn.description}</div>}
-            <div style={{ display: 'flex', gap: 8 }}>
+<div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 8 }}>{txn.name}</div>            <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => openEdit(txn)}>✏️ Edit</button>
               <button className="btn btn-outline btn-sm" style={{ flex: 1, color: '#dc2626' }}
                 onClick={() => setDeleteTarget(txn)}>🗑️ Delete</button>

@@ -432,6 +432,30 @@ select.form-control { cursor: pointer; }
     transform: scale(1);
   }
 }
+.dropdown-box {
+  position: absolute;
+  width: 100%;
+  background: white;
+  border: 1px solid #ddd;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  border-radius: 6px;
+}
+
+.dropdown-item {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.create-new {
+  color: green;
+  font-weight: 600;
+}
 
 /* ── Status badge variants (MySQL backend) ── */
 .badge-paid      { background: #dcfce7; color: #16a34a; }

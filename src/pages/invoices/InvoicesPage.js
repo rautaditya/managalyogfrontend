@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { invoicesAPI, sitesAPI } from '../../api';
 import Modal from '../../components/common/Modal';
@@ -7,7 +7,7 @@ import ItemsForm from '../../components/common/ItemsForm';
 import { formatCurrency, formatDate, statusColor, getError } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-const EMPTY_FORM = { site_id: '', notes: '', due_date: '', status: 'unpaid' };
+const EMPTY_FORM = { client_name: '', site_id: null, notes: '', due_date: '', status: 'unpaid' };
 const EMPTY_ITEM = { description: '', quantity: 1, rate: 0, amount: 0 };
 
 export default function InvoicesPage() {
@@ -22,21 +22,28 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [filterSite, setFilterSite] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const autocompleteRef = useRef(null);
+
   const navigate = useNavigate();
 
-  const filteredInvoices = invoices.filter((inv) =>
-    inv.invoice_number?.toLowerCase().includes(search.toLowerCase().trim()) ||
-    inv.site_name?.toLowerCase().includes(search.toLowerCase().trim())
-  );
+  const filteredInvoices = invoices.filter((inv) => {
+    const s = search.toLowerCase().trim();
+    return (
+      inv.invoice_number?.toLowerCase().includes(s) ||
+      inv.site_name?.toLowerCase().includes(s) ||
+      inv.client_name?.toLowerCase().includes(s)
+    );
+  });
 
   const fetchData = useCallback(async () => {
     try {
       const params = {};
-      if (filterSite) params.site_id = filterSite;
       if (filterStatus) params.status = filterStatus;
-
       const [invRes, sitesRes] = await Promise.all([
         invoicesAPI.getAll(params),
         sitesAPI.getAll(),
@@ -48,27 +55,69 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterSite, filterStatus]);
+  }, [filterStatus]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleClientNameChange = (value) => {
+    setForm({ ...form, client_name: value, site_id: null });
+    if (value.trim().length > 0) {
+      const filtered = sites.filter((s) =>
+        s.name?.toLowerCase().includes(value.toLowerCase()) ||
+        s.owner_name?.toLowerCase().includes(value.toLowerCase())
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSite = (site) => {
+    setForm({ ...form, client_name: site.name, site_id: site.id });
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
   const openCreate = () => {
     setForm(EMPTY_FORM);
     setItems([{ ...EMPTY_ITEM }]);
     setTaxRate(0);
+    setSuggestions([]);
+    setShowSuggestions(false);
     setModalOpen(true);
   };
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!form.site_id) return toast.error('Please select a site');
+    if (!form.client_name.trim()) return toast.error('Please enter client name');
     if (items.some((i) => !i.description || !i.rate)) return toast.error('Fill all item fields');
 
     setSaving(true);
     try {
-      await invoicesAPI.create({ ...form, items, tax_rate: parseFloat(taxRate) || 0 });
+      await invoicesAPI.create({
+        client_name: form.client_name.trim(),
+        site_id: form.site_id || null,
+        tax_rate: parseFloat(taxRate) || 0,
+        status: form.status,
+        due_date: form.due_date || null,
+        notes: form.notes || null,
+        items,
+      });
       toast.success('Invoice created');
       setModalOpen(false);
       fetchData();
@@ -128,13 +177,12 @@ export default function InvoicesPage() {
       <div className="filters-bar">
         <input
           type="text"
-          placeholder="Search invoice..."
+          placeholder="Search by number or client..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="form-control"
-          style={{ maxWidth: 220 }}
+          style={{ maxWidth: 260 }}
         />
-
         <select
           className="form-control"
           value={filterStatus}
@@ -145,27 +193,9 @@ export default function InvoicesPage() {
           <option value="unpaid">Unpaid</option>
           <option value="cancelled">Cancelled</option>
         </select>
-
-        <select
-          className="form-control"
-          value={filterSite}
-          onChange={(e) => setFilterSite(e.target.value)}
-        >
-          <option value="">All Sites</option>
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-
         <button
           className="btn btn-outline btn-sm"
-          onClick={() => {
-            setFilterSite('');
-            setFilterStatus('');
-            setSearch('');
-          }}
+          onClick={() => { setFilterStatus(''); setSearch(''); }}
         >
           Clear
         </button>
@@ -174,9 +204,7 @@ export default function InvoicesPage() {
       {/* Table */}
       <div className="card">
         {loading ? (
-          <div className="empty-state">
-            <p>Loading...</p>
-          </div>
+          <div className="empty-state"><p>Loading...</p></div>
         ) : filteredInvoices.length === 0 ? (
           <div className="empty-state">
             <div className="icon">🧾</div>
@@ -190,7 +218,7 @@ export default function InvoicesPage() {
                 <thead>
                   <tr>
                     <th>Invoice #</th>
-                    <th>Site</th>
+                    <th>Client</th>
                     <th>Date</th>
                     <th>Total</th>
                     <th>Status</th>
@@ -205,44 +233,20 @@ export default function InvoicesPage() {
                         onClick={() => navigate(`/invoices/${inv.id}`)}
                       >
                         {inv.invoice_number}
-                        <div style={{ fontSize: 12, color: '#6b7280' }}>
-                          {inv.city || inv.site_city || ''}
-                        </div>
                       </td>
-
-                      <td>{inv.site_name || '—'}</td>
+                      <td>{inv.site_name || inv.client_name || '—'}</td>
                       <td>{formatDate(inv.date)}</td>
                       <td style={{ fontWeight: 700 }}>{formatCurrency(inv.total)}</td>
-
                       <td>
                         <span className={`badge ${statusColor(inv.status)}`}>
                           {inv.status}
                         </span>
                       </td>
-
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => navigate(`/invoices/${inv.id}`)}
-                          >
-                            👁️
-                          </button>
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => handleDownloadPDF(inv)}
-                          >
-                            📄
-                          </button>
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            style={{ color: '#dc2626' }}
-                            onClick={() => setDeleteTarget(inv)}
-                          >
-                            🗑️
-                          </button>
+                          <button className="btn btn-outline btn-sm" onClick={() => navigate(`/invoices/${inv.id}`)}>👁️</button>
+                          <button className="btn btn-outline btn-sm" onClick={() => handleDownloadPDF(inv)}>📄</button>
+                          <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }} onClick={() => setDeleteTarget(inv)}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -255,46 +259,18 @@ export default function InvoicesPage() {
             <div className="mobile-cards">
               {filteredInvoices.map((inv) => (
                 <div key={inv.id} className="invoice-card">
-                  <div>
-                    <strong>#{inv.invoice_number}</strong>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>
-                      {inv.city || inv.site_city || ''}
-                    </div>
-                  </div>
-
-                  <div>{inv.site_name}</div>
+                  <div><strong>#{inv.invoice_number}</strong></div>
+                  <div>{inv.site_name || inv.client_name || '—'}</div>
                   <div>Date: {formatDate(inv.date)}</div>
                   <div>Total: {formatCurrency(inv.total)}</div>
-
                   <div>
                     Status:{' '}
-                    <span className={`badge ${statusColor(inv.status)}`}>
-                      {inv.status}
-                    </span>
+                    <span className={`badge ${statusColor(inv.status)}`}>{inv.status}</span>
                   </div>
-
                   <div className="card-actions">
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => navigate(`/invoices/${inv.id}`)}
-                    >
-                      👁️
-                    </button>
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => handleDownloadPDF(inv)}
-                    >
-                      📄
-                    </button>
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      style={{ color: '#dc2626' }}
-                      onClick={() => setDeleteTarget(inv)}
-                    >
-                      🗑️
-                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={() => navigate(`/invoices/${inv.id}`)}>👁️</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => handleDownloadPDF(inv)}>📄</button>
+                    <button className="btn btn-outline btn-sm" style={{ color: '#dc2626' }} onClick={() => setDeleteTarget(inv)}>🗑️</button>
                   </div>
                 </div>
               ))}
@@ -303,27 +279,84 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {/* Modal + Delete Dialog unchanged */}
+      {/* Create Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Invoice" size="lg">
         <form onSubmit={handleCreate}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
-              <div className="form-group">
-                <label className="form-label">Site *</label>
-                <select
+
+              {/* CLIENT NAME WITH AUTOCOMPLETE */}
+              <div className="form-group" ref={autocompleteRef} style={{ position: 'relative' }}>
+                <label className="form-label">Client Name *</label>
+                <input
+                  type="text"
                   className="form-control"
-                  value={form.site_id}
-                  onChange={(e) => setForm({ ...form, site_id: e.target.value })}
-                >
-                  <option value="">Select site</option>
-                  {sites.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Type name or search existing site..."
+                  value={form.client_name}
+                  onChange={(e) => handleClientNameChange(e.target.value)}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                  autoComplete="off"
+                />
+
+                {/* Site linked badge */}
+                {form.site_id && (
+                  <div style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: '#1e40af',
+                    background: '#dbeafe',
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                  }}>
+                    🏢 Site linked
+                  </div>
+                )}
+
+                {/* Suggestions Dropdown */}
+                {showSuggestions && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: '#fff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    zIndex: 1000,
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                  }}>
+                    {suggestions.map((site) => (
+                      <div
+                        key={site.id}
+                        onMouseDown={() => handleSelectSite(site)}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f3f4f6',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>🏢 {site.name}</span>
+                        {site.owner_name && (
+                          <span style={{ fontSize: 12, color: '#6b7280' }}>Owner: {site.owner_name}</span>
+                        )}
+                        {site.phone && (
+                          <span style={{ fontSize: 12, color: '#6b7280' }}>📞 {site.phone}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* STATUS */}
               <div className="form-group">
                 <label className="form-label">Status</label>
                 <select
@@ -337,6 +370,7 @@ export default function InvoicesPage() {
                 </select>
               </div>
 
+              {/* DUE DATE */}
               <div className="form-group">
                 <label className="form-label">Due Date</label>
                 <input
@@ -366,7 +400,6 @@ export default function InvoicesPage() {
             <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>
               Cancel
             </button>
-
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Creating...' : '🧾 Create Invoice'}
             </button>

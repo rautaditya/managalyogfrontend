@@ -391,7 +391,7 @@ export default function LoginPage() {
               lineHeight: 1.6,
             }}
           >
-            Default: <span style={{ color: '#1e3a8a', fontWeight: 700 }}>admin@mangalyog.com / admin123</span>
+            {/* Default: <span style={{ color: '#1e3a8a', fontWeight: 700 }}>admin@mangalyog.com / admin123</span> */}
           </div>
         </div>
       </div>

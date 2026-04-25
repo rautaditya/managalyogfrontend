@@ -7,7 +7,15 @@ import ItemsForm from '../../components/common/ItemsForm';
 import { formatCurrency, formatDate, statusColor, getError } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-const EMPTY_FORM = { client_name: '', site_id: null, notes: '', valid_until: '', status: 'draft' };
+const EMPTY_FORM = {
+  client_name: '',
+  site_id: null,
+  notes: '',
+  valid_until: '',
+  status: 'draft',
+  advance_amount: '',
+};
+
 const EMPTY_ITEM = { description: '', quantity: 1, rate: 0, amount: 0 };
 
 export default function QuotationsPage() {
@@ -25,7 +33,6 @@ export default function QuotationsPage() {
   const [converting, setConverting] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Autocomplete
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const autocompleteRef = useRef(null);
@@ -34,6 +41,7 @@ export default function QuotationsPage() {
 
   const filteredQuotations = quotations.filter((quot) => {
     const s = search.toLowerCase().trim();
+
     const matchesSearch =
       quot.quotation_number?.toLowerCase().includes(s) ||
       quot.site_name?.toLowerCase().includes(s) ||
@@ -50,6 +58,7 @@ export default function QuotationsPage() {
         quotationsAPI.getAll(),
         sitesAPI.getAll(),
       ]);
+
       setQuotations(quotRes.data);
       setSites(sitesRes.data);
     } catch {
@@ -63,7 +72,6 @@ export default function QuotationsPage() {
     fetchData();
   }, [fetchData]);
 
-  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
@@ -83,6 +91,7 @@ export default function QuotationsPage() {
         s.name?.toLowerCase().includes(value.toLowerCase()) ||
         s.owner_name?.toLowerCase().includes(value.toLowerCase())
       );
+
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     } else {
@@ -127,6 +136,7 @@ export default function QuotationsPage() {
         status: form.status,
         valid_until: form.valid_until || null,
         notes: form.notes || null,
+        advance_amount: parseFloat(form.advance_amount) || 0,
         items,
       });
 
@@ -194,7 +204,6 @@ export default function QuotationsPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="page-header">
         <div>
           <h2 className="page-title">Quotations</h2>
@@ -208,7 +217,6 @@ export default function QuotationsPage() {
         </button>
       </div>
 
-      {/* Filters */}
       <div className="filters-bar">
         <input
           type="text"
@@ -241,7 +249,6 @@ export default function QuotationsPage() {
         </button>
       </div>
 
-      {/* Table */}
       <div className="card">
         {loading ? (
           <div className="empty-state">
@@ -254,7 +261,6 @@ export default function QuotationsPage() {
           </div>
         ) : (
           <>
-            {/* Desktop */}
             <div className="table-wrapper desktop-table">
               <table>
                 <thead>
@@ -263,6 +269,7 @@ export default function QuotationsPage() {
                     <th>Client</th>
                     <th>Date</th>
                     <th>Total</th>
+                    <th>Advance</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -285,6 +292,9 @@ export default function QuotationsPage() {
                       <td style={{ fontWeight: 700 }}>
                         {formatCurrency(quot.total)}
                       </td>
+                      <td style={{ color: '#16a34a', fontWeight: 600 }}>
+  {formatCurrency(quot.advance_amount || 0)}
+</td>
 
                       <td>
                         <span className={`badge ${statusColor(quot.status)}`}>
@@ -334,20 +344,37 @@ export default function QuotationsPage() {
               </table>
             </div>
 
-            {/* Mobile */}
             <div className="mobile-cards">
               {filteredQuotations.map((quot) => (
                 <div key={quot.id} className="invoice-card">
-                  <div><strong>#{quot.quotation_number}</strong></div>
+                  <div style={{
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center'
+}}>
+  <strong>#{quot.quotation_number}</strong>
+
+  <span style={{
+    fontSize: 12,
+    color: '#6b7280'
+  }}>
+    {formatDate(quot.date)}
+  </span>
+</div>
                   <div>{quot.site_name || quot.client_name || '—'}</div>
-                  <div>Date: {formatDate(quot.date)}</div>
+                  {/* <div>Date: {formatDate(quot.date)}</div> */}
                   <div>Total: {formatCurrency(quot.total)}</div>
+
+<div style={{ color: '#16a34a', fontWeight: 600 }}>
+  Advance: {formatCurrency(quot.advance_amount || 0)}
+</div>
                   <div>
                     Status:{' '}
                     <span className={`badge ${statusColor(quot.status)}`}>
                       {quot.status}
                     </span>
                   </div>
+
                   <div className="card-actions">
                     <button
                       className="btn btn-outline btn-sm"
@@ -389,12 +416,10 @@ export default function QuotationsPage() {
         )}
       </div>
 
-      {/* Create Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Quotation" size="lg">
         <form onSubmit={handleCreate}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
-              {/* CLIENT NAME WITH AUTOCOMPLETE */}
               <div className="form-group" ref={autocompleteRef} style={{ position: 'relative' }}>
                 <label className="form-label">Client Name *</label>
                 <input
@@ -457,11 +482,13 @@ export default function QuotationsPage() {
                         onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
                       >
                         <span style={{ fontWeight: 600, fontSize: 14 }}>🏢 {site.name}</span>
+
                         {site.owner_name && (
                           <span style={{ fontSize: 12, color: '#6b7280' }}>
                             Owner: {site.owner_name}
                           </span>
                         )}
+
                         {site.phone && (
                           <span style={{ fontSize: 12, color: '#6b7280' }}>
                             📞 {site.phone}
@@ -473,7 +500,6 @@ export default function QuotationsPage() {
                 )}
               </div>
 
-              {/* STATUS */}
               <div className="form-group">
                 <label className="form-label">Status</label>
                 <select
@@ -486,7 +512,6 @@ export default function QuotationsPage() {
                 </select>
               </div>
 
-              {/* VALID UNTIL */}
               <div className="form-group">
                 <label className="form-label">Valid Until</label>
                 <input
@@ -494,6 +519,17 @@ export default function QuotationsPage() {
                   className="form-control"
                   value={form.valid_until}
                   onChange={(e) => setForm({ ...form, valid_until: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Advance Amount</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="Enter advance amount"
+                  value={form.advance_amount}
+                  onChange={(e) => setForm({ ...form, advance_amount: e.target.value })}
                 />
               </div>
             </div>

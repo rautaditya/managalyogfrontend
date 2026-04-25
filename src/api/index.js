@@ -1,17 +1,15 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
 });
 
-// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 globally
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -24,7 +22,6 @@ api.interceptors.response.use(
   }
 );
 
-// ── Auth ──────────────────────────────────────────────
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
@@ -32,18 +29,15 @@ export const authAPI = {
   changePassword: (data) => api.put('/auth/change-password', data),
 };
 
-// ── Sites ─────────────────────────────────────────────
 export const sitesAPI = {
   getAll: (params) => api.get('/sites', { params }),
   getById: (id) => api.get(`/sites/${id}`),
   getDashboard: (id) => api.get(`/sites/${id}/dashboard`),
-  // Backend expects snake_case: name, address, owner_name, phone, gst_number, project_name, status, notes
   create: (data) => api.post('/sites', normalizeSite(data)),
   update: (id, data) => api.put(`/sites/${id}`, normalizeSite(data)),
   delete: (id) => api.delete(`/sites/${id}`),
 };
 
-// ── Transactions ──────────────────────────────────────
 export const transactionsAPI = {
   getAll: (params) => {
     const p = {};
@@ -66,7 +60,6 @@ export const transactionsAPI = {
   },
 };
 
-// ── Invoices ──────────────────────────────────────────
 export const invoicesAPI = {
   getAll: (params) => {
     const p = {};
@@ -81,7 +74,6 @@ export const invoicesAPI = {
   downloadPDF: (id) => api.get(`/invoices/${id}/pdf`, { responseType: 'blob' }),
 };
 
-// ── Quotations ────────────────────────────────────────
 export const quotationsAPI = {
   getAll: (params) => {
     const p = {};
@@ -97,57 +89,57 @@ export const quotationsAPI = {
   downloadPDF: (id) => api.get(`/quotations/${id}/pdf`, { responseType: 'blob' }),
 };
 
-// ── Normalizers: camelCase → snake_case for request bodies ──
-
 function normalizeSite(data) {
   return {
-    name:         data.name,
-    address:      data.address,
-    owner_name:   data.owner_name || data.ownerName || null,
-    phone:        data.phone || null,
-    gst_number:   data.gst_number || data.gstNumber || null,
+    name: data.name,
+    address: data.address,
+    owner_name: data.owner_name || data.ownerName || null,
+    phone: data.phone || null,
+    gst_number: data.gst_number || data.gstNumber || null,
     project_name: data.project_name || data.projectName || null,
-    status:       data.status || 'active',
-    notes:        data.notes || null,
+    status: data.status || 'active',
+    notes: data.notes || null,
   };
 }
 
 function normalizeTransaction(data) {
   return {
-    type:         data.type,
-    amount:       data.amount,
-    site_id:      data.site_id || data.siteId,
-    name:         data.name,
-    description:  data.description || null,
-    note:         data.note || null,
+    type: data.type,
+    amount: data.amount,
+    site_id: data.site_id || data.siteId,
+    name: data.name,
+    description: data.description || null,
+    note: data.note || null,
     payment_mode: data.payment_mode || data.paymentMode || 'Cash',
-    date:         data.date,
+    date: data.date,
   };
 }
 
 function normalizeInvoice(data) {
   return {
-    site_id:     data.site_id || null,
+    site_id: data.site_id || null,
     client_name: data.client_name || null,
-    items:       data.items,
-    tax_rate:    data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
-    status:      data.status,
-    due_date:    data.due_date || data.dueDate || null,
-    notes:       data.notes || null,
-    date:        data.date || null,
+    items: data.items,
+    tax_rate: data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
+    status: data.status,
+    due_date: data.due_date || data.dueDate || null,
+    notes: data.notes || null,
+    date: data.date || null,
+    advance_amount: data.advance_amount ? parseFloat(data.advance_amount) : 0,
   };
 }
-// TO THIS:
+
 function normalizeQuotation(data) {
   return {
-    site_id:     data.site_id || null,
+    site_id: data.site_id || null,
     client_name: data.client_name || null,
-    items:       data.items,
-    tax_rate:    data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
-    status:      data.status,
+    items: data.items,
+    tax_rate: data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
+    status: data.status,
     valid_until: data.valid_until || data.validUntil || null,
-    notes:       data.notes || null,
-    date:        data.date || null,
+    notes: data.notes || null,
+    date: data.date || null,
+    advance_amount: data.advance_amount ? parseFloat(data.advance_amount) : 0,
   };
 }
 

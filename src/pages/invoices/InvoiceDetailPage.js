@@ -37,7 +37,6 @@ export default function InvoiceDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      // MySQL: invoice_number
       a.download = `${invoice.invoice_number}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
@@ -49,14 +48,12 @@ export default function InvoiceDetailPage() {
   if (loading) return <div className="empty-state"><p>Loading invoice...</p></div>;
   if (!invoice) return null;
 
-  // MySQL backend returns nested site object in getById: invoice.site
   const site = invoice.site;
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn btn-outline btn-sm" onClick={() => navigate('/invoices')}>← Invoices</button>
-        {/* MySQL: invoice_number */}
         <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', flex: 1 }}>{invoice.invoice_number}</h2>
         <span className={`badge ${statusColor(invoice.status)}`} style={{ fontSize: 13 }}>{invoice.status}</span>
         <button className="btn btn-outline" onClick={handleDownload} disabled={downloading}>
@@ -65,7 +62,6 @@ export default function InvoiceDetailPage() {
       </div>
 
       <div className="grid-2" style={{ marginBottom: 24 }}>
-        {/* Invoice Info */}
         <div className="card">
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>
             Invoice Details
@@ -74,7 +70,6 @@ export default function InvoiceDetailPage() {
             {[
               ['Invoice #', invoice.invoice_number],
               ['Date', formatDate(invoice.date)],
-              // MySQL: due_date
               ['Due Date', formatDate(invoice.due_date)],
               ['Status', <span className={`badge ${statusColor(invoice.status)}`}>{invoice.status}</span>],
               ['Total', <strong style={{ color: '#1e40af' }}>{formatCurrency(invoice.total)}</strong>],
@@ -85,6 +80,7 @@ export default function InvoiceDetailPage() {
               </div>
             ))}
           </div>
+
           <div style={{ marginTop: 16, borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>Update Status:</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -98,69 +94,63 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
-        {/* Site Info */}
         <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 14 }}>
             Billed To
           </h3>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>{site?.name}</div>
-          {site?.address     && <div style={{ fontSize: 14, color: '#64748b' }}>📍 {site.address}</div>}
-          {/* MySQL: owner_name */}
-          {site?.owner_name  && <div style={{ fontSize: 14, color: '#64748b' }}>👤 {site.owner_name}</div>}
-          {site?.phone       && <div style={{ fontSize: 14, color: '#64748b' }}>📞 {site.phone}</div>}
-          {/* MySQL: gst_number */}
-          {site?.gst_number  && <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8 }}>GST: {site.gst_number}</div>}
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{site?.name}</div>
+          {site?.address && <div>📍 {site.address}</div>}
+          {site?.owner_name && <div>👤 {site.owner_name}</div>}
+          {site?.phone && <div>📞 {site.phone}</div>}
+          {site?.gst_number && <div>GST: {site.gst_number}</div>}
         </div>
       </div>
 
-      {/* Items */}
       <div className="card">
-        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Items</h3>
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Description</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Rate</th>
-                <th style={{ textAlign: 'right' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(invoice.items || []).map((item, i) => (
-                <tr key={i}>
-                  <td style={{ color: '#94a3b8' }}>{i + 1}</td>
-                  <td>{item.description}</td>
-                  <td style={{ textAlign: 'right' }}>{item.quantity}</td>
-                  <td style={{ textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(item.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <h3 style={{ fontSize: 15, fontWeight: 700 }}>Items</h3>
 
-        {/* Totals */}
-        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16, marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 32, fontSize: 14 }}>
-            <span style={{ color: '#64748b' }}>Subtotal</span>
-            <span style={{ fontWeight: 600 }}>{formatCurrency(invoice.subtotal)}</span>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Rate</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(invoice.items || []).map((item, i) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>{item.description}</td>
+                <td>{item.quantity}</td>
+                <td>{formatCurrency(item.rate)}</td>
+                <td>{formatCurrency(item.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ✅ UPDATED SECTION */}
+        <div style={{ marginTop: 20 }}>
+          <div>
+            <strong>Advance Amount:</strong> {formatCurrency(invoice.advance_amount || 0)}
           </div>
-          {/* MySQL: tax_rate, tax_amount */}
+
           {invoice.tax_rate > 0 && (
-            <div style={{ display: 'flex', gap: 32, fontSize: 14 }}>
-              <span style={{ color: '#64748b' }}>Tax ({invoice.tax_rate}%)</span>
-              <span style={{ fontWeight: 600 }}>{formatCurrency(invoice.tax_amount)}</span>
+            <div>
+              <strong>Tax ({invoice.tax_rate}%):</strong> {formatCurrency(invoice.tax_amount)}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 32, fontSize: 18, fontWeight: 800, color: '#1e40af', borderTop: '2px solid #1e40af', paddingTop: 8 }}>
-            <span>Total</span>
-            <span>{formatCurrency(invoice.total)}</span>
+
+          <div style={{ fontWeight: 'bold', fontSize: 18 }}>
+            Total: {formatCurrency(invoice.total)}
           </div>
         </div>
 
         {invoice.notes && (
-          <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, fontSize: 14, color: '#475569' }}>
+          <div style={{ marginTop: 10 }}>
             <strong>Notes:</strong> {invoice.notes}
           </div>
         )}

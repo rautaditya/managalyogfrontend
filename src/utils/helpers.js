@@ -39,15 +39,17 @@ export const getError = (err) =>
 // Status badge CSS class — maps to index.css badge classes
 export const statusColor = (status) => {
   const map = {
-    paid:      'badge-paid',
-    unpaid:    'badge-unpaid',
-    overdue:   'badge-overdue',
-    cancelled: 'badge-cancelled',
-    active:    'badge-active',
-    inactive:  'badge-inactive',
-    draft:     'badge-draft',
-    sent:      'badge-sent',
-    converted: 'badge-converted',
+    'Tax Invoice':      'badge-paid',
+    'Proforma Invoice': 'badge-unpaid',
+    paid:               'badge-paid',
+    unpaid:             'badge-unpaid',
+    overdue:            'badge-overdue',
+    cancelled:          'badge-cancelled',
+    active:             'badge-active',
+    inactive:           'badge-inactive',
+    draft:              'badge-draft',
+    sent:               'badge-sent',
+    converted:          'badge-converted',
   };
   return map[status] || 'badge-draft';
 };

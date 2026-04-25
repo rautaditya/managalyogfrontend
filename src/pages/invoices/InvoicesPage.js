@@ -12,7 +12,7 @@ const EMPTY_FORM = {
   site_id: null,
   notes: '',
   due_date: '',
-  status: 'unpaid',
+  status: 'Tax Invoice',
   advance_amount: '',
 };
 
@@ -207,8 +207,8 @@ export default function InvoicesPage() {
           onChange={(e) => setFilterStatus(e.target.value)}
         >
           <option value="">All Status</option>
-          <option value="unpaid">Proforma Invoice</option>
-<option value="paid">Tax Invoice</option>
+          <option value="Tax Invoice">Tax Invoice</option>
+          <option value="Proforma Invoice">Proforma Invoice</option>
         </select>
 
         <button
@@ -265,17 +265,14 @@ export default function InvoicesPage() {
                       <td style={{ fontWeight: 700 }}>
                         {formatCurrency(inv.total)}
                       </td>
+
                       <td style={{ color: '#16a34a', fontWeight: 600 }}>
-  {formatCurrency(inv.advance_amount || 0)}
-</td>
+                        {formatCurrency(inv.advance_amount || 0)}
+                      </td>
 
                       <td>
                         <span className={`badge ${statusColor(inv.status)}`}>
-                         {inv.status === 'paid'
-  ? 'Tax Invoice'
-  : inv.status === 'unpaid'
-  ? 'Proforma Invoice'
-  : inv.status}
+                          {inv.status}
                         </span>
                       </td>
 
@@ -313,32 +310,29 @@ export default function InvoicesPage() {
             <div className="mobile-cards">
               {filteredInvoices.map((inv) => (
                 <div key={inv.id} className="invoice-card">
-                 <div style={{
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center'
-}}>
-  <strong>#{inv.invoice_number}</strong>
-  <span style={{ fontSize: 12, color: '#6b7280' }}>
-    {formatDate(inv.date)}
-  </span>
-</div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <strong>#{inv.invoice_number}</strong>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}>
+                      {formatDate(inv.date)}
+                    </span>
+                  </div>
+
                   <div>{inv.site_name || inv.client_name || '—'}</div>
-                  {/* <div>Date: {formatDate(inv.date)}</div> */}
                   <div>Total: {formatCurrency(inv.total)}</div>
 
-<div style={{ color: '#16a34a', fontWeight: 600 }}>
-  Advance: {formatCurrency(inv.advance_amount || 0)}
-</div>
+                  <div style={{ color: '#16a34a', fontWeight: 600 }}>
+                    Advance: {formatCurrency(inv.advance_amount || 0)}
+                  </div>
+
                   <div>
                     Status:{' '}
                     <span className={`badge ${statusColor(inv.status)}`}>
-  {inv.status === 'paid'
-    ? 'Tax Invoice'
-    : inv.status === 'unpaid'
-    ? 'Proforma Invoice'
-    : inv.status}
-</span>
+                      {inv.status}
+                    </span>
                   </div>
 
                   <div className="card-actions">
@@ -462,8 +456,8 @@ export default function InvoicesPage() {
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
-                  <option value="paid">Tax Invoice</option>
-<option value="unpaid">Proforma Invoice</option>
+                  <option value="Tax Invoice">Tax Invoice</option>
+                  <option value="Proforma Invoice">Proforma Invoice</option>
                 </select>
               </div>
 

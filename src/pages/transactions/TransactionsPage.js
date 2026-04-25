@@ -45,11 +45,15 @@ export default function TransactionsPage() {
 
   // ✅ FIX: Define filteredTransactions FIRST
   // MySQL flat join: site_name (not txn.siteId?.name)
-  const filteredTransactions = transactions.filter((txn) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return txn.name?.toLowerCase().includes(q) || txn.site_name?.toLowerCase().includes(q);
-  });
+ const filteredTransactions = transactions.filter((txn) => {
+  if (!searchQuery.trim()) return true;
+  const q = searchQuery.toLowerCase();
+  return (
+    txn.name?.toLowerCase().includes(q) ||
+    txn.site_name?.toLowerCase().includes(q) ||
+    txn.description?.toLowerCase().includes(q)
+  );
+});
 
   // ✅ FIX: Use filteredTransactions so totals update on search/filter
   const totalIn  = filteredTransactions.filter((t) => t.type === 'IN').reduce((s, t) => s + parseFloat(t.amount || 0), 0);

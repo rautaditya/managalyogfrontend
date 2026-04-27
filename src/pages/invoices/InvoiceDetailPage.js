@@ -84,7 +84,7 @@ export default function InvoiceDetailPage() {
           <div style={{ marginTop: 16, borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>Update Status:</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {['paid', 'unpaid', 'cancelled'].map((s) => (
+              {['Tax Invoice', 'Proforma Invoice'].map((s) => (
                 <button key={s} disabled={updatingStatus || invoice.status === s}
                   onClick={() => handleStatusChange(s)}
                   className={`btn btn-sm ${invoice.status === s ? 'btn-primary' : 'btn-outline'}`}

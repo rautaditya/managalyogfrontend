@@ -53,11 +53,21 @@ export const transactionsAPI = {
   update: (id, data) => api.put(`/transactions/${id}`, normalizeTransaction(data)),
   delete: (id) => api.delete(`/transactions/${id}`),
   summary: () => api.get('/transactions/summary'),
-  exportExcel: (params) => {
-    const p = {};
-    if (params?.site_id || params?.siteId) p.site_id = params.site_id || params.siteId;
-    return api.get('/transactions/export', { params: p, responseType: 'blob' });
-  },
+  // In api.js — replace the exportExcel function inside transactionsAPI
+exportExcel: (params) => {
+  const p = {};
+  if (params?.site_id)      p.site_id      = params.site_id;
+  if (params?.type)         p.type         = params.type;
+  if (params?.payment_mode) p.payment_mode = params.payment_mode;
+  if (params?.start_date)   p.start_date   = params.start_date;
+  if (params?.end_date)     p.end_date     = params.end_date;
+  if (params?.search)       p.search       = params.search;
+
+  return api.get('/transactions/export', {
+    params: p,
+    responseType: 'arraybuffer',  // ← was 'blob', must be 'arraybuffer' for xlsx
+  });
+},
 };
 
 export const invoicesAPI = {

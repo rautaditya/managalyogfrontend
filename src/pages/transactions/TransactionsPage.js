@@ -5,7 +5,6 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { formatCurrency, formatDate, getError } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-// MySQL backend expects: type, amount, site_id, name, description, note, payment_mode, date
 const EMPTY_FORM = {
   type: 'IN', amount: '', site_id: '', name: '', description: '',
   note: '', payment_mode: 'Cash', date: new Date().toISOString().split('T')[0],
@@ -13,51 +12,110 @@ const EMPTY_FORM = {
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
-  const [sites, setSites] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editTxn, setEditTxn] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
+  const [sites, setSites]               = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [modalOpen, setModalOpen]       = useState(false);
+  const [editTxn, setEditTxn]           = useState(null);
+  const [form, setForm]                 = useState(EMPTY_FORM);
+  const [saving, setSaving]             = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [filters, setFilters] = useState({ site_id: '', type: '', payment_mode: '' });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [exporting, setExporting]       = useState(false);
 
+  // ── All filters in one object ──
+  const [filters, setFilters] = useState({
+    site_id: '', type: '', payment_mode: '',
+    start_date: '', end_date: '',
+  });
+
+  // ── Fetch from server with all filters ──
   const fetchData = useCallback(async () => {
     try {
       const params = {};
       if (filters.site_id)      params.site_id      = filters.site_id;
       if (filters.type)         params.type         = filters.type;
       if (filters.payment_mode) params.payment_mode = filters.payment_mode;
+      if (filters.start_date)   params.start_date   = filters.start_date;
+      if (filters.end_date)     params.end_date     = filters.end_date;
+
       const [txnRes, sitesRes] = await Promise.all([
         transactionsAPI.getAll(params),
         sitesAPI.getAll(),
       ]);
       setTransactions(txnRes.data);
       setSites(sitesRes.data);
-    } catch { toast.error('Failed to load transactions'); }
-    finally { setLoading(false); }
+    } catch {
+      toast.error('Failed to load transactions');
+    } finally {
+      setLoading(false);
+    }
   }, [filters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ✅ FIX: Define filteredTransactions FIRST
-  // MySQL flat join: site_name (not txn.siteId?.name)
- const filteredTransactions = transactions.filter((txn) => {
-  if (!searchQuery.trim()) return true;
-  const q = searchQuery.toLowerCase();
-  return (
-    txn.name?.toLowerCase().includes(q) ||
-    txn.site_name?.toLowerCase().includes(q) ||
-    txn.description?.toLowerCase().includes(q)
-  );
-});
+  // ── Client-side search on top of server-filtered results ──
+  const filteredTransactions = transactions.filter((txn) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      txn.name?.toLowerCase().includes(q) ||
+      txn.site_name?.toLowerCase().includes(q) ||
+      txn.description?.toLowerCase().includes(q)
+    );
+  });
 
-  // ✅ FIX: Use filteredTransactions so totals update on search/filter
-  const totalIn  = filteredTransactions.filter((t) => t.type === 'IN').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const totalIn  = filteredTransactions.filter((t) => t.type === 'IN') .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
   const totalOut = filteredTransactions.filter((t) => t.type === 'OUT').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+
+  const clearFilters = () => {
+    setFilters({ site_id: '', type: '', payment_mode: '', start_date: '', end_date: '' });
+    setSearchQuery('');
+  };
+
+  // ── Export with ALL active filters ──
+const handleExport = async () => {
+  setExporting(true);
+  try {
+    const params = {};
+    if (filters.site_id)      params.site_id      = filters.site_id;
+    if (filters.type)         params.type         = filters.type;
+    if (filters.payment_mode) params.payment_mode = filters.payment_mode;
+    if (filters.start_date)   params.start_date   = filters.start_date;
+    if (filters.end_date)     params.end_date     = filters.end_date;
+    if (searchQuery.trim())   params.search       = searchQuery.trim(); // ✅ search included
+
+    const res = await transactionsAPI.exportExcel(params);
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+
+    const parts = [];
+    if (filters.site_id) {
+      const site = sites.find((s) => String(s.id) === String(filters.site_id));
+      if (site) parts.push(site.name.replace(/\s+/g, '_'));
+    }
+    if (filters.type)           parts.push(filters.type);
+    if (filters.payment_mode)   parts.push(filters.payment_mode);
+    if (filters.start_date)     parts.push(filters.start_date);
+    if (filters.end_date)       parts.push(filters.end_date);
+    if (searchQuery.trim())     parts.push(searchQuery.trim().replace(/\s+/g, '_'));
+
+    a.href     = url;
+    a.download = parts.length
+      ? `transactions-${parts.join('-')}.xlsx`
+      : 'transactions-all.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Excel exported!');
+  } catch {
+    toast.error('Export failed');
+  } finally {
+    setExporting(false);
+  }
+};
 
   const openAdd = () => { setEditTxn(null); setForm(EMPTY_FORM); setModalOpen(true); };
 
@@ -78,15 +136,24 @@ export default function TransactionsPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.amount || !form.name || !form.site_id) return toast.error('Amount, name, and site are required');
+    if (!form.amount || !form.name || !form.site_id)
+      return toast.error('Amount, name, and site are required');
     setSaving(true);
     try {
-      if (editTxn) { await transactionsAPI.update(editTxn.id, form); toast.success('Updated'); }
-      else { await transactionsAPI.create(form); toast.success('Transaction added'); }
+      if (editTxn) {
+        await transactionsAPI.update(editTxn.id, form);
+        toast.success('Updated');
+      } else {
+        await transactionsAPI.create(form);
+        toast.success('Transaction added');
+      }
       setModalOpen(false);
       fetchData();
-    } catch (err) { toast.error(getError(err)); }
-    finally { setSaving(false); }
+    } catch (err) {
+      toast.error(getError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -96,28 +163,16 @@ export default function TransactionsPage() {
       toast.success('Deleted');
       setDeleteTarget(null);
       fetchData();
-    } catch (err) { toast.error(getError(err)); }
-    finally { setDeleting(false); }
-  };
-
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const params = filters.site_id ? { site_id: filters.site_id } : {};
-      const res = await transactionsAPI.exportExcel(params);
-      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'transactions.xlsx'; a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Excel exported!');
-    } catch { toast.error('Export failed'); }
-    finally { setExporting(false); }
+    } catch (err) {
+      toast.error(getError(err));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
     <div>
-      {/* Header — buttons fully right aligned */}
+      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <p className="page-subtitle">{filteredTransactions.length} of {transactions.length} records</p>
@@ -130,7 +185,7 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Summary Cards — now reactive to search & filters */}
+      {/* ── Summary Cards ── */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         {[
           { label: 'Total IN',  val: totalIn,            color: '#16a34a' },
@@ -144,38 +199,60 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      {/* Search + Filters */}
+      {/* ── Filters ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <input className="form-control" type="text" placeholder="🔍 Search by name or site..."
-          value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ flex: '1 1 200px', minWidth: 180 }} />
+        <input
+          className="form-control" type="text"
+          placeholder="🔍 Search by name or site..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ flex: '1 1 200px', minWidth: 180 }}
+        />
 
-        <select className="form-control" style={{ flex: '1 1 130px' }} value={filters.site_id}
+        <select className="form-control" style={{ flex: '1 1 130px' }}
+          value={filters.site_id}
           onChange={(e) => setFilters({ ...filters, site_id: e.target.value })}>
           <option value="">All Sites</option>
           {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
 
-        <select className="form-control" style={{ flex: '1 1 130px' }} value={filters.type}
+        <select className="form-control" style={{ flex: '1 1 110px' }}
+          value={filters.type}
           onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
           <option value="">All Types</option>
           <option value="IN">Money IN</option>
           <option value="OUT">Money OUT</option>
         </select>
 
-        <select className="form-control" style={{ flex: '1 1 130px' }} value={filters.payment_mode}
+        <select className="form-control" style={{ flex: '1 1 110px' }}
+          value={filters.payment_mode}
           onChange={(e) => setFilters({ ...filters, payment_mode: e.target.value })}>
           <option value="">All Modes</option>
-          <option>Cash</option><option>UPI</option><option>Bank</option>
+          <option>Cash</option>
+          <option>UPI</option>
+          <option>Bank</option>
         </select>
 
-        <button className="btn btn-outline btn-sm"
-          onClick={() => { setFilters({ site_id: '', type: '', payment_mode: '' }); setSearchQuery(''); }}>
-          Clear
-        </button>
+        {/* ── Date range ── */}
+        <input
+          type="date" className="form-control"
+          style={{ flex: '1 1 140px' }}
+          value={filters.start_date}
+          onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
+          title="From date"
+        />
+        <input
+          type="date" className="form-control"
+          style={{ flex: '1 1 140px' }}
+          value={filters.end_date}
+          onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
+          title="To date"
+        />
+
+        <button className="btn btn-outline btn-sm" onClick={clearFilters}>Clear</button>
       </div>
 
-      {/* Desktop Table */}
+      {/* ── Desktop Table ── */}
       <div className="card desktop-table">
         {loading ? (
           <div className="empty-state"><p>Loading...</p></div>
@@ -197,7 +274,11 @@ export default function TransactionsPage() {
                     <td style={{ fontWeight: 500, color: '#1e40af' }}>{txn.site_name || '—'}</td>
                     <td style={{ fontWeight: 500 }}>{txn.name}</td>
                     <td style={{ color: '#64748b', maxWidth: 160 }}>{txn.description || '—'}</td>
-                    <td><span style={{ fontSize: 12, padding: '2px 8px', background: '#f1f5f9', borderRadius: 4 }}>{txn.payment_mode}</span></td>
+                    <td>
+                      <span style={{ fontSize: 12, padding: '2px 8px', background: '#f1f5f9', borderRadius: 4 }}>
+                        {txn.payment_mode}
+                      </span>
+                    </td>
                     <td>
                       <span className={`badge badge-${txn.type === 'IN' ? 'in' : 'out'}`}>{txn.type}</span>
                     </td>
@@ -219,7 +300,7 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* Mobile Cards */}
+      {/* ── Mobile Cards ── */}
       <div className="mobile-cards">
         {loading ? (
           <div className="empty-state"><p>Loading...</p></div>
@@ -238,7 +319,8 @@ export default function TransactionsPage() {
                 {txn.type === 'IN' ? '+' : '-'}{formatCurrency(txn.amount)}
               </span>
             </div>
-<div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 8 }}>{txn.name}</div>            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 8 }}>{txn.name}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => openEdit(txn)}>✏️ Edit</button>
               <button className="btn btn-outline btn-sm" style={{ flex: 1, color: '#dc2626' }}
                 onClick={() => setDeleteTarget(txn)}>🗑️ Delete</button>
@@ -247,7 +329,7 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      {/* Modal */}
+      {/* ── Add / Edit Modal ── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)}
         title={editTxn ? 'Edit Transaction' : 'Add Transaction'}>
         <form onSubmit={handleSave}>
@@ -272,7 +354,8 @@ export default function TransactionsPage() {
               <div className="form-group">
                 <label className="form-label">Amount (₹) *</label>
                 <input type="number" className="form-control" placeholder="0.00" min="0" step="0.01"
-                  value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div className="form-group">
                 <label className="form-label">Name *</label>
@@ -300,7 +383,8 @@ export default function TransactionsPage() {
             <div className="form-group">
               <label className="form-label">Note</label>
               <textarea className="form-control" rows={2} placeholder="Additional note"
-                value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </div>
           </div>
           <div className="modal-footer">
@@ -313,7 +397,8 @@ export default function TransactionsPage() {
       </Modal>
 
       <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete} loading={deleting} title="Delete Transaction"
+        onConfirm={handleDelete} loading={deleting}
+        title="Delete Transaction"
         message={`Delete transaction "${deleteTarget?.name}"?`} />
     </div>
   );

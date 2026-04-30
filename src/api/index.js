@@ -129,6 +129,12 @@ function normalizeInvoice(data) {
   return {
     site_id: data.site_id || null,
     client_name: data.client_name || null,
+
+    // 🔥 ADD THESE 3 LINES
+    address: data.address || null,
+    phone: data.phone || null,
+    gst_number: data.gst_number || null,
+
     items: data.items,
     tax_rate: data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
     status: data.status,
@@ -143,6 +149,9 @@ function normalizeQuotation(data) {
   return {
     site_id: data.site_id || null,
     client_name: data.client_name || null,
+    address: data.address || null,
+    phone: data.phone || null,
+    gst_number: data.gst_number || null,
     items: data.items,
     tax_rate: data.tax_rate != null ? data.tax_rate : (data.taxRate != null ? data.taxRate : 0),
     status: data.status,

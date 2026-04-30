@@ -10,9 +10,12 @@ import toast from 'react-hot-toast';
 const EMPTY_FORM = {
   client_name: '',
   site_id: null,
+  address: '',
+  phone: '',
+  gst_number: '',
   notes: '',
   due_date: '',
-  status: 'Tax Invoice',
+  status: 'unpaid',
   advance_amount: '',
 };
 
@@ -24,6 +27,8 @@ export default function InvoicesPage() {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
   const [form, setForm] = useState(EMPTY_FORM);
   const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
   const [taxRate, setTaxRate] = useState(0);
@@ -82,7 +87,11 @@ export default function InvoicesPage() {
   }, []);
 
   const handleClientNameChange = (value) => {
-    setForm({ ...form, client_name: value, site_id: null });
+    setForm({
+      ...form,
+      client_name: value,
+      site_id: null,
+    });
 
     if (value.trim().length > 0) {
       const filtered = sites.filter((s) =>
@@ -99,12 +108,21 @@ export default function InvoicesPage() {
   };
 
   const handleSelectSite = (site) => {
-    setForm({ ...form, client_name: site.name, site_id: site.id });
+    setForm({
+      ...form,
+      client_name: site.name || '',
+      site_id: site.id,
+      address: site.address || '',
+      phone: site.phone || '',
+      gst_number: site.gst_number || '',
+    });
+
     setSuggestions([]);
     setShowSuggestions(false);
   };
 
   const openCreate = () => {
+    setEditingId(null);
     setForm(EMPTY_FORM);
     setItems([{ ...EMPTY_ITEM }]);
     setTaxRate(0);
@@ -113,28 +131,73 @@ export default function InvoicesPage() {
     setModalOpen(true);
   };
 
-  const handleCreate = async (e) => {
+  const handleEdit = async (inv) => {
+    try {
+      const res = await invoicesAPI.getById(inv.id);
+      const fullInv = res.data;
+
+      setEditingId(fullInv.id);
+
+      setForm({
+        client_name: fullInv.client_name || fullInv.site?.name || '',
+        site_id: fullInv.site_id || null,
+        address: fullInv.address || fullInv.site?.address || '',
+        phone: fullInv.phone || fullInv.site?.phone || '',
+        gst_number: fullInv.gst_number || fullInv.site?.gst_number || '',
+        notes: fullInv.notes || '',
+        due_date: fullInv.due_date ? String(fullInv.due_date).split('T')[0] : '',
+        status: fullInv.status || 'unpaid',
+        advance_amount: fullInv.advance_amount || '',
+      });
+
+      setItems(
+        fullInv.items && fullInv.items.length > 0
+          ? fullInv.items
+          : [{ ...EMPTY_ITEM }]
+      );
+
+      setTaxRate(fullInv.tax_rate || 0);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setModalOpen(true);
+    } catch (err) {
+      toast.error(getError(err));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.client_name.trim()) return toast.error('Please enter client name');
     if (items.some((i) => !i.description || !i.rate)) return toast.error('Fill all item fields');
 
+    const payload = {
+      client_name: form.client_name.trim(),
+      site_id: form.site_id || null,
+      address: form.address || null,
+      phone: form.phone || null,
+      gst_number: form.gst_number || null,
+      tax_rate: parseFloat(taxRate) || 0,
+      status: form.status,
+      due_date: form.due_date || null,
+      notes: form.notes || null,
+      advance_amount: parseFloat(form.advance_amount) || 0,
+      items,
+    };
+
     setSaving(true);
 
     try {
-      await invoicesAPI.create({
-        client_name: form.client_name.trim(),
-        site_id: form.site_id || null,
-        tax_rate: parseFloat(taxRate) || 0,
-        status: form.status,
-        due_date: form.due_date || null,
-        notes: form.notes || null,
-        advance_amount: parseFloat(form.advance_amount) || 0,
-        items,
-      });
+      if (editingId) {
+        await invoicesAPI.update(editingId, payload);
+        toast.success('Invoice updated');
+      } else {
+        await invoicesAPI.create(payload);
+        toast.success('Invoice created');
+      }
 
-      toast.success('Invoice created');
       setModalOpen(false);
+      setEditingId(null);
       fetchData();
     } catch (err) {
       toast.error(getError(err));
@@ -176,6 +239,36 @@ export default function InvoicesPage() {
     }
   };
 
+  const ActionButtons = ({ inv }) => (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <button className="btn btn-outline btn-sm" onClick={() => handleDownloadPDF(inv)} title="Download">
+        📥
+      </button>
+
+      <button className="btn btn-outline btn-sm" onClick={() => navigate(`/invoices/${inv.id}`)} title="View">
+        👁️
+      </button>
+
+      <button
+        className="btn btn-outline btn-sm"
+        style={{ color: '#2563eb' }}
+        onClick={() => handleEdit(inv)}
+        title="Edit"
+      >
+        ✏️
+      </button>
+
+      <button
+        className="btn btn-outline btn-sm"
+        style={{ color: '#dc2626' }}
+        onClick={() => setDeleteTarget(inv)}
+        title="Delete"
+      >
+        🗑️
+      </button>
+    </div>
+  );
+
   return (
     <div>
       <div className="page-header">
@@ -207,8 +300,8 @@ export default function InvoicesPage() {
           onChange={(e) => setFilterStatus(e.target.value)}
         >
           <option value="">All Status</option>
-          <option value="Tax Invoice">Tax Invoice</option>
-          <option value="Proforma Invoice">Proforma Invoice</option>
+          <option value="unpaid">Proforma Invoice</option>
+          <option value="paid">Tax Invoice</option>
         </select>
 
         <button
@@ -259,12 +352,8 @@ export default function InvoicesPage() {
                       </td>
 
                       <td>{inv.site_name || inv.client_name || '—'}</td>
-
                       <td>{formatDate(inv.date)}</td>
-
-                      <td style={{ fontWeight: 700 }}>
-                        {formatCurrency(inv.total)}
-                      </td>
+                      <td style={{ fontWeight: 700 }}>{formatCurrency(inv.total)}</td>
 
                       <td style={{ color: '#16a34a', fontWeight: 600 }}>
                         {formatCurrency(inv.advance_amount || 0)}
@@ -272,34 +361,16 @@ export default function InvoicesPage() {
 
                       <td>
                         <span className={`badge ${statusColor(inv.status)}`}>
-                          {inv.status}
+                          {inv.status === 'paid'
+                            ? 'Tax Invoice'
+                            : inv.status === 'unpaid'
+                            ? 'Proforma Invoice'
+                            : inv.status}
                         </span>
                       </td>
 
                       <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => navigate(`/invoices/${inv.id}`)}
-                          >
-                            👁️
-                          </button>
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => handleDownloadPDF(inv)}
-                          >
-                            📄
-                          </button>
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            style={{ color: '#dc2626' }}
-                            onClick={() => setDeleteTarget(inv)}
-                          >
-                            🗑️
-                          </button>
-                        </div>
+                        <ActionButtons inv={inv} />
                       </td>
                     </tr>
                   ))}
@@ -310,11 +381,7 @@ export default function InvoicesPage() {
             <div className="mobile-cards">
               {filteredInvoices.map((inv) => (
                 <div key={inv.id} className="invoice-card">
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong>#{inv.invoice_number}</strong>
                     <span style={{ fontSize: 12, color: '#6b7280' }}>
                       {formatDate(inv.date)}
@@ -331,32 +398,16 @@ export default function InvoicesPage() {
                   <div>
                     Status:{' '}
                     <span className={`badge ${statusColor(inv.status)}`}>
-                      {inv.status}
+                      {inv.status === 'paid'
+                        ? 'Tax Invoice'
+                        : inv.status === 'unpaid'
+                        ? 'Proforma Invoice'
+                        : inv.status}
                     </span>
                   </div>
 
                   <div className="card-actions">
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => navigate(`/invoices/${inv.id}`)}
-                    >
-                      👁️
-                    </button>
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => handleDownloadPDF(inv)}
-                    >
-                      📄
-                    </button>
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      style={{ color: '#dc2626' }}
-                      onClick={() => setDeleteTarget(inv)}
-                    >
-                      🗑️
-                    </button>
+                    <ActionButtons inv={inv} />
                   </div>
                 </div>
               ))}
@@ -365,8 +416,16 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Invoice" size="lg">
-        <form onSubmit={handleCreate}>
+      <Modal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingId(null);
+        }}
+        title={editingId ? 'Edit Invoice' : 'Create Invoice'}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
               <div className="form-group" ref={autocompleteRef} style={{ position: 'relative' }}>
@@ -456,8 +515,8 @@ export default function InvoicesPage() {
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
-                  <option value="Tax Invoice">Tax Invoice</option>
-                  <option value="Proforma Invoice">Proforma Invoice</option>
+                  <option value="paid">Tax Invoice</option>
+                  <option value="unpaid">Proforma Invoice</option>
                 </select>
               </div>
 
@@ -479,6 +538,39 @@ export default function InvoicesPage() {
                   placeholder="Enter advance amount"
                   value={form.advance_amount}
                   onChange={(e) => setForm({ ...form, advance_amount: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Address</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter address"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mobile Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter mobile number"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">GST Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter GST number"
+                  value={form.gst_number}
+                  onChange={(e) => setForm({ ...form, gst_number: e.target.value })}
                 />
               </div>
             </div>
@@ -506,13 +598,22 @@ export default function InvoicesPage() {
             <button
               type="button"
               className="btn btn-outline"
-              onClick={() => setModalOpen(false)}
+              onClick={() => {
+                setModalOpen(false);
+                setEditingId(null);
+              }}
             >
               Cancel
             </button>
 
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Creating...' : '🧾 Create Invoice'}
+              {saving
+                ? editingId
+                  ? 'Updating...'
+                  : 'Creating...'
+                : editingId
+                ? '✏️ Update Invoice'
+                : '🧾 Create Invoice'}
             </button>
           </div>
         </form>

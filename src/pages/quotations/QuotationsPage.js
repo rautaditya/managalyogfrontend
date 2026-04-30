@@ -10,6 +10,9 @@ import toast from 'react-hot-toast';
 const EMPTY_FORM = {
   client_name: '',
   site_id: null,
+  address: '',
+  phone: '',
+  gst_number: '',
   notes: '',
   valid_until: '',
   status: 'draft',
@@ -24,6 +27,8 @@ export default function QuotationsPage() {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
   const [form, setForm] = useState(EMPTY_FORM);
   const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
   const [taxRate, setTaxRate] = useState(0);
@@ -84,7 +89,11 @@ export default function QuotationsPage() {
   }, []);
 
   const handleClientNameChange = (value) => {
-    setForm({ ...form, client_name: value, site_id: null });
+    setForm({
+      ...form,
+      client_name: value,
+      site_id: null,
+    });
 
     if (value.trim().length > 0) {
       const filtered = sites.filter((s) =>
@@ -101,12 +110,21 @@ export default function QuotationsPage() {
   };
 
   const handleSelectSite = (site) => {
-    setForm({ ...form, client_name: site.name, site_id: site.id });
+    setForm({
+      ...form,
+      client_name: site.name || '',
+      site_id: site.id,
+      address: site.address || '',
+      phone: site.phone || '',
+      gst_number: site.gst_number || '',
+    });
+
     setSuggestions([]);
     setShowSuggestions(false);
   };
 
   const openCreate = () => {
+    setEditingId(null);
     setForm(EMPTY_FORM);
     setItems([{ ...EMPTY_ITEM }]);
     setTaxRate(0);
@@ -115,7 +133,41 @@ export default function QuotationsPage() {
     setModalOpen(true);
   };
 
-  const handleCreate = async (e) => {
+  const handleEdit = async (quot) => {
+    try {
+      const res = await quotationsAPI.getById(quot.id);
+      const fullQuot = res.data;
+
+      setEditingId(fullQuot.id);
+
+      setForm({
+        client_name: fullQuot.client_name || fullQuot.site?.name || '',
+        site_id: fullQuot.site_id || null,
+        address: fullQuot.address || fullQuot.site?.address || '',
+        phone: fullQuot.phone || fullQuot.site?.phone || '',
+        gst_number: fullQuot.gst_number || fullQuot.site?.gst_number || '',
+        notes: fullQuot.notes || '',
+        valid_until: fullQuot.valid_until ? String(fullQuot.valid_until).split('T')[0] : '',
+        status: fullQuot.status || 'draft',
+        advance_amount: fullQuot.advance_amount || '',
+      });
+
+      setItems(
+        fullQuot.items && fullQuot.items.length > 0
+          ? fullQuot.items
+          : [{ ...EMPTY_ITEM }]
+      );
+
+      setTaxRate(fullQuot.tax_rate || 0);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setModalOpen(true);
+    } catch (err) {
+      toast.error(getError(err));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.client_name.trim()) {
@@ -126,22 +178,33 @@ export default function QuotationsPage() {
       return toast.error('Fill all item fields');
     }
 
+    const payload = {
+      client_name: form.client_name.trim(),
+      site_id: form.site_id || null,
+      address: form.address || null,
+      phone: form.phone || null,
+      gst_number: form.gst_number || null,
+      tax_rate: parseFloat(taxRate) || 0,
+      status: form.status,
+      valid_until: form.valid_until || null,
+      notes: form.notes || null,
+      advance_amount: parseFloat(form.advance_amount) || 0,
+      items,
+    };
+
     setSaving(true);
 
     try {
-      await quotationsAPI.create({
-        client_name: form.client_name.trim(),
-        site_id: form.site_id || null,
-        tax_rate: parseFloat(taxRate) || 0,
-        status: form.status,
-        valid_until: form.valid_until || null,
-        notes: form.notes || null,
-        advance_amount: parseFloat(form.advance_amount) || 0,
-        items,
-      });
+      if (editingId) {
+        await quotationsAPI.update(editingId, payload);
+        toast.success('Quotation updated');
+      } else {
+        await quotationsAPI.create(payload);
+        toast.success('Quotation created');
+      }
 
-      toast.success('Quotation created');
       setModalOpen(false);
+      setEditingId(null);
       fetchData();
     } catch (err) {
       toast.error(getError(err));
@@ -201,6 +264,56 @@ export default function QuotationsPage() {
       setDeleting(false);
     }
   };
+
+  const ActionButtons = ({ quot }) => (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <button
+        className="btn btn-outline btn-sm"
+        onClick={() => handleDownloadPDF(quot)}
+        title="Download"
+      >
+        📥
+      </button>
+
+      <button
+        className="btn btn-outline btn-sm"
+        onClick={() => navigate(`/quotations/${quot.id}`)}
+        title="View"
+      >
+        👁️
+      </button>
+
+      <button
+        className="btn btn-outline btn-sm"
+        style={{ color: '#2563eb' }}
+        onClick={() => handleEdit(quot)}
+        title="Edit"
+      >
+        ✏️
+      </button>
+
+      {quot.status !== 'converted' && (
+        <button
+  className="btn btn-outline btn-sm"
+  style={{ color: '#7c3aed', fontSize: 11 }}
+  onClick={() => handleConvert(quot)}
+  disabled={converting === quot.id}
+  title="Convert to Invoice"
+>
+  {converting === quot.id ? '...' : '→ Invoice'}
+</button>
+      )}
+
+      <button
+        className="btn btn-outline btn-sm"
+        style={{ color: '#dc2626' }}
+        onClick={() => setDeleteTarget(quot)}
+        title="Delete"
+      >
+        🗑️
+      </button>
+    </div>
+  );
 
   return (
     <div>
@@ -286,15 +399,12 @@ export default function QuotationsPage() {
                       </td>
 
                       <td>{quot.site_name || quot.client_name || '—'}</td>
-
                       <td>{formatDate(quot.date)}</td>
+                      <td style={{ fontWeight: 700 }}>{formatCurrency(quot.total)}</td>
 
-                      <td style={{ fontWeight: 700 }}>
-                        {formatCurrency(quot.total)}
-                      </td>
                       <td style={{ color: '#16a34a', fontWeight: 600 }}>
-  {formatCurrency(quot.advance_amount || 0)}
-</td>
+                        {formatCurrency(quot.advance_amount || 0)}
+                      </td>
 
                       <td>
                         <span className={`badge ${statusColor(quot.status)}`}>
@@ -303,40 +413,7 @@ export default function QuotationsPage() {
                       </td>
 
                       <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => navigate(`/quotations/${quot.id}`)}
-                          >
-                            👁️
-                          </button>
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => handleDownloadPDF(quot)}
-                          >
-                            📄
-                          </button>
-
-                          {quot.status !== 'converted' && (
-                            <button
-                              className="btn btn-outline btn-sm"
-                              style={{ color: '#7c3aed', fontSize: 11 }}
-                              onClick={() => handleConvert(quot)}
-                              disabled={converting === quot.id}
-                            >
-                              {converting === quot.id ? '...' : '→ Invoice'}
-                            </button>
-                          )}
-
-                          <button
-                            className="btn btn-outline btn-sm"
-                            style={{ color: '#dc2626' }}
-                            onClick={() => setDeleteTarget(quot)}
-                          >
-                            🗑️
-                          </button>
-                        </div>
+                        <ActionButtons quot={quot} />
                       </td>
                     </tr>
                   ))}
@@ -347,27 +424,20 @@ export default function QuotationsPage() {
             <div className="mobile-cards">
               {filteredQuotations.map((quot) => (
                 <div key={quot.id} className="invoice-card">
-                  <div style={{
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center'
-}}>
-  <strong>#{quot.quotation_number}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>#{quot.quotation_number}</strong>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}>
+                      {formatDate(quot.date)}
+                    </span>
+                  </div>
 
-  <span style={{
-    fontSize: 12,
-    color: '#6b7280'
-  }}>
-    {formatDate(quot.date)}
-  </span>
-</div>
                   <div>{quot.site_name || quot.client_name || '—'}</div>
-                  {/* <div>Date: {formatDate(quot.date)}</div> */}
                   <div>Total: {formatCurrency(quot.total)}</div>
 
-<div style={{ color: '#16a34a', fontWeight: 600 }}>
-  Advance: {formatCurrency(quot.advance_amount || 0)}
-</div>
+                  <div style={{ color: '#16a34a', fontWeight: 600 }}>
+                    Advance: {formatCurrency(quot.advance_amount || 0)}
+                  </div>
+
                   <div>
                     Status:{' '}
                     <span className={`badge ${statusColor(quot.status)}`}>
@@ -376,38 +446,7 @@ export default function QuotationsPage() {
                   </div>
 
                   <div className="card-actions">
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => navigate(`/quotations/${quot.id}`)}
-                    >
-                      👁️
-                    </button>
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => handleDownloadPDF(quot)}
-                    >
-                      📄
-                    </button>
-
-                    {quot.status !== 'converted' && (
-                      <button
-                        className="btn btn-outline btn-sm"
-                        style={{ color: '#7c3aed', fontSize: 11 }}
-                        onClick={() => handleConvert(quot)}
-                        disabled={converting === quot.id}
-                      >
-                        {converting === quot.id ? '...' : '→ Invoice'}
-                      </button>
-                    )}
-
-                    <button
-                      className="btn btn-outline btn-sm"
-                      style={{ color: '#dc2626' }}
-                      onClick={() => setDeleteTarget(quot)}
-                    >
-                      🗑️
-                    </button>
+                    <ActionButtons quot={quot} />
                   </div>
                 </div>
               ))}
@@ -416,8 +455,16 @@ export default function QuotationsPage() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Create Quotation" size="lg">
-        <form onSubmit={handleCreate}>
+      <Modal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingId(null);
+        }}
+        title={editingId ? 'Edit Quotation' : 'Create Quotation'}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="grid-2" style={{ marginBottom: 20 }}>
               <div className="form-group" ref={autocompleteRef} style={{ position: 'relative' }}>
@@ -509,6 +556,7 @@ export default function QuotationsPage() {
                 >
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
+                  {editingId && <option value="converted">Converted</option>}
                 </select>
               </div>
 
@@ -530,6 +578,39 @@ export default function QuotationsPage() {
                   placeholder="Enter advance amount"
                   value={form.advance_amount}
                   onChange={(e) => setForm({ ...form, advance_amount: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Address</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter address"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mobile Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter mobile number"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">GST Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter GST number"
+                  value={form.gst_number}
+                  onChange={(e) => setForm({ ...form, gst_number: e.target.value })}
                 />
               </div>
             </div>
@@ -557,13 +638,22 @@ export default function QuotationsPage() {
             <button
               type="button"
               className="btn btn-outline"
-              onClick={() => setModalOpen(false)}
+              onClick={() => {
+                setModalOpen(false);
+                setEditingId(null);
+              }}
             >
               Cancel
             </button>
 
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Creating...' : '📋 Create Quotation'}
+              {saving
+                ? editingId
+                  ? 'Updating...'
+                  : 'Creating...'
+                : editingId
+                ? '✏️ Update Quotation'
+                : '📋 Create Quotation'}
             </button>
           </div>
         </form>

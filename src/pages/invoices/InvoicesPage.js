@@ -14,6 +14,7 @@ const EMPTY_FORM = {
   phone: '',
   gst_number: '',
   notes: '',
+  date: '',
   due_date: '',
   status: 'unpaid',
   advance_amount: '',
@@ -145,6 +146,7 @@ export default function InvoicesPage() {
         phone: fullInv.phone || fullInv.site?.phone || '',
         gst_number: fullInv.gst_number || fullInv.site?.gst_number || '',
         notes: fullInv.notes || '',
+        date: fullInv.date ? String(fullInv.date).split('T')[0] : '',
         due_date: fullInv.due_date ? String(fullInv.due_date).split('T')[0] : '',
         status: fullInv.status || 'unpaid',
         advance_amount: fullInv.advance_amount || '',
@@ -179,6 +181,7 @@ export default function InvoicesPage() {
       gst_number: form.gst_number || null,
       tax_rate: parseFloat(taxRate) || 0,
       status: form.status,
+      date: form.date || null,
       due_date: form.due_date || null,
       notes: form.notes || null,
       advance_amount: parseFloat(form.advance_amount) || 0,
@@ -518,6 +521,16 @@ export default function InvoicesPage() {
                   <option value="paid">Tax Invoice</option>
                   <option value="unpaid">Proforma Invoice</option>
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Invoice Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
               </div>
 
               <div className="form-group">
